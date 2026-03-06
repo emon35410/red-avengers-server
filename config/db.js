@@ -2,14 +2,13 @@ const { MongoClient, ServerApiVersion } = require('mongodb');
 const dns = require('dns');
 require('dotenv').config();
 
-//  DNS issue solution for MongoDB Atlas
+// DNS issue solution (ISP Fix)
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
-const uri = process.env.MONGODB_URI; 
+const uri = process.env.MONGODB_URI;
 
-// URI checking
 if (!uri) {
-    console.error("❌ MONGODB_URI is not defined in your .env file!");
+    console.error("❌ MONGODB_URI is missing in .env!");
     process.exit(1);
 }
 
@@ -21,12 +20,14 @@ const client = new MongoClient(uri, {
     }
 });
 
-const db = client.db("redAvengersDB");
+// here we will store the database connection
+let db;
 
 const connectDB = async () => {
     try {
         await client.connect();
-        // ping connection
+        db = client.db("redAvengersDB"); // database name
+        
         await db.command({ ping: 1 });
         console.log("🛡️ Red Avengers DB Connected Successfully!");
     } catch (error) {
@@ -34,11 +35,16 @@ const connectDB = async () => {
     }
 };
 
+// This function will return the database connection when called from other files
+const getDB = () => {
+    if (!db) {
+        throw new Error("Database not initialized. Call connectDB first.");
+    }
+    return db;
+};
+
 module.exports = {
     connectDB,
-    usersCollection: db.collection("users"),
-    donorCollection: db.collection("donor"),
-    requestsCollection: db.collection("bloodRequests"),
-    paymentsCollection: db.collection("payments"),
+    getDB, 
     client
 };
