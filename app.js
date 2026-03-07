@@ -5,7 +5,7 @@ const cors = require('cors');
 // middlewares and routes import
 const { globalErrorHandler } = require('./middlewares/errorMiddleware');
 const userRoutes = require('./routes/usersRoutes');
-const donorRoutes = require('./routes/donorRoutes');
+const campRoutes = require('./routes/campsRoutes');
 
 // standard middlewares
 app.use(express.json());
@@ -18,7 +18,7 @@ app.get('/', (req, res) => {
 
 // api routes
 app.use('/users', userRoutes);
-app.use('/donors', donorRoutes);
+app.use('/camps', campRoutes);
 
 // global error handling middleware
 app.use(globalErrorHandler);
