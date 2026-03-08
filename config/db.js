@@ -13,11 +13,9 @@ if (!uri) {
 }
 
 const client = new MongoClient(uri, {
-    serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
-    }
+    family: 4, // Forces the driver to use IPv4
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 10000,
 });
 
 // here we will store the database connection
@@ -27,7 +25,7 @@ const connectDB = async () => {
     try {
         await client.connect();
         db = client.db("redAvengersDB"); // database name
-        
+
         await db.command({ ping: 1 });
         console.log("🛡️ Red Avengers DB Connected Successfully!");
     } catch (error) {
@@ -45,6 +43,6 @@ const getDB = () => {
 
 module.exports = {
     connectDB,
-    getDB, 
+    getDB,
     client
 };

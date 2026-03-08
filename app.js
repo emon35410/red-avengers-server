@@ -6,10 +6,14 @@ const cors = require('cors');
 const { globalErrorHandler } = require('./middlewares/errorMiddleware');
 const userRoutes = require('./routes/usersRoutes');
 const campRoutes = require('./routes/campsRoutes');
+const paymentRoute = require('./routes/paymentRoutes');
 
 // standard middlewares
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    credentials: true
+}));
 
 // root route
 app.get('/', (req, res) => {
@@ -19,6 +23,7 @@ app.get('/', (req, res) => {
 // api routes
 app.use('/users', userRoutes);
 app.use('/camps', campRoutes);
+app.use('/payments', paymentRoute);
 
 // global error handling middleware
 app.use(globalErrorHandler);
