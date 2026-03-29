@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDB } = require('../config/db');
+const { ObjectId } = require('mongodb');
 
 // new user registration (POST)
 router.post('/', async (req, res) => {
@@ -63,6 +64,28 @@ router.get('/:uid', async (req, res) => {
         res.status(500).send({ message: "Error fetching user", error: error.message });
     }
 });
+// user role fetching by email (GET)
+router.get('/role/:email', async (req, res) => {
+    try {
+        const db = getDB();
+        const usersCollection = db.collection('users');
+        const email = req.params.email;
+
+        // find user by email and only select the 'role' field
+        const user = await usersCollection.findOne(
+            { email: email },
+            { projection: { role: 1, _id: 0 } }
+        );
+
+        if (user) {
+            res.send({ role: user.role });
+        } else {
+            res.status(404).send({ message: "User not found", role: null });
+        }
+    } catch (error) {
+        res.status(500).send({ message: "Error fetching role", error: error.message });
+    }
+});
 
 // user to donor profile update (PATCH)
 router.patch('/:uid', async (req, res) => {
@@ -83,8 +106,8 @@ router.patch('/:uid', async (req, res) => {
                 role: 'donor',
                 isDonor: true,
                 status: 'active',
-                totalDonations: 0, 
-                donationHistory: [] 
+                totalDonations: 0,
+                donationHistory: []
             },
         };
 
@@ -96,6 +119,37 @@ router.patch('/:uid', async (req, res) => {
             res.status(404).send({ success: false, message: "No changes made" });
         }
     } catch (error) {
+        res.status(500).send({ message: "Update failed", error: error.message });
+    }
+});
+
+// Change User Role or Status (PATCH)
+router.patch('/admin/:id', async (req, res) => {
+    try {
+        const db = getDB();
+        const usersCollection = db.collection('users');
+        const id = req.params.id;
+        const { role, status } = req.body;
+
+        // MongoDB ID object-e convert korte hobe
+        const filter = { _id: new ObjectId(id) };
+
+        const updateDoc = {
+            $set: {
+                ...(role && { role }),
+                ...(status && { status })
+            }
+        };
+
+        const result = await usersCollection.updateOne(filter, updateDoc);
+
+        if (result.matchedCount === 0) {
+            return res.status(404).send({ message: "User not found" });
+        }
+
+        res.send(result);
+    } catch (error) {
+        console.error(error);
         res.status(500).send({ message: "Update failed", error: error.message });
     }
 });

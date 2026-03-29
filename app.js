@@ -7,6 +7,7 @@ const { globalErrorHandler } = require('./middlewares/errorMiddleware');
 const userRoutes = require('./routes/usersRoutes');
 const campRoutes = require('./routes/campsRoutes');
 const paymentRoute = require('./routes/paymentRoutes');
+const inventoryRoute = require('./routes/inventoryRoutes');
 
 // standard middlewares
 app.use(express.json());
@@ -24,6 +25,7 @@ app.get('/', (req, res) => {
 app.use('/users', userRoutes);
 app.use('/camps', campRoutes);
 app.use('/payments', paymentRoute);
+app.use('/inventory', inventoryRoute);
 
 // global error handling middleware
 app.use(globalErrorHandler);
