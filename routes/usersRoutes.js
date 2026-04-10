@@ -1,157 +1,244 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { getDB } = require('../config/db');
-const { ObjectId } = require('mongodb');
+const { getDB } = require("../config/db");
+const { ObjectId } = require("mongodb");
 
-// new user registration (POST)
-router.post('/', async (req, res) => {
-    try {
-        const db = getDB();
-        const usersCollection = db.collection('users');
+// ---------------------------------------------------------
+// 1. DEDICATED & STATIC ROUTES (SHOBAR AGE RAKHTE HOBE)
+// ---------------------------------------------------------
 
-        const user = req.body; // { name, email, photoURL }
-        const query = { email: user.email };
-
-        // check if user already exists
-        const existingUser = await usersCollection.findOne(query);
-        if (existingUser) {
-            return res.send({ message: 'User already exists', insertedId: null });
-        }
-
-        // NEW USER CREATION
-        const newUser = {
-            uid: user.uid,
-            name: user.name || "Anonymous",
-            email: user.email,
-            photoURL: user.photoURL || "",
-            bloodGroup: "",
-            district: "",
-            upazila: "",
-            phone: "",
-            role: 'user',
-            status: 'active',
-            createdAt: new Date()
-        };
-
-        const result = await usersCollection.insertOne(newUser);
-        res.send(result);
-    } catch (error) {
-        res.status(500).send({ message: "Error saving user", error: error.message });
-    }
+// ✅ Get all donors
+router.get("/all-donors", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const result = await usersCollection.find({ role: "donor" }).toArray();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
 });
 
-// all users fetching (GET)
-router.get('/', async (req, res) => {
-    try {
-        const db = getDB();
-        const usersCollection = db.collection('users');
-
-        const result = await usersCollection.find().toArray();
-        res.send(result);
-    } catch (error) {
-        res.status(500).send({ message: "Error fetching users", error: error.message });
-    }
-});
-//  user fetching by uid (GET)
-router.get('/:uid', async (req, res) => {
-    try {
-        const db = getDB();
-        const usersCollection = db.collection('users');
-        const uid = req.params.uid;
-        const result = await usersCollection.findOne({ uid: uid });
-        res.send(result);
-    } catch (error) {
-        res.status(500).send({ message: "Error fetching user", error: error.message });
-    }
-});
-// user role fetching by email (GET)
-router.get('/role/:email', async (req, res) => {
-    try {
-        const db = getDB();
-        const usersCollection = db.collection('users');
-        const email = req.params.email;
-
-        // find user by email and only select the 'role' field
-        const user = await usersCollection.findOne(
-            { email: email },
-            { projection: { role: 1, _id: 0 } }
-        );
-
-        if (user) {
-            res.send({ role: user.role });
-        } else {
-            res.status(404).send({ message: "User not found", role: null });
-        }
-    } catch (error) {
-        res.status(500).send({ message: "Error fetching role", error: error.message });
-    }
+// ✅ Get all volunteers
+router.get("/all-volunteers", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const result = await usersCollection.find({ role: "volunteer" }).toArray();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
 });
 
-// user to donor profile update (PATCH)
-router.patch('/:uid', async (req, res) => {
-    try {
-        const db = getDB();
-        const usersCollection = db.collection('users');
-        const uid = req.params.uid;
-        const updatedData = req.body;
+// ✅ Donation History (Fixed: :uid এর উপরে নিয়ে আসা হয়েছে)
+router.get("/donation-history/:email", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const email = req.params.email;
 
-        const filter = { uid: uid };
-        const updateDoc = {
-            $set: {
-                bloodGroup: updatedData.bloodGroup,
-                district: updatedData.district,
-                upazila: updatedData.upazila,
-                phone: updatedData.phone,
-                // after update, the user becomes a donor
-                role: 'donor',
-                isDonor: true,
-                status: 'active',
-                totalDonations: 0,
-                donationHistory: []
-            },
-        };
+    const user = await usersCollection.findOne(
+      { email: email },
+      { projection: { donationHistory: 1, totalDonations: 1, lastDonationDate: 1, _id: 0 } }
+    );
 
-        const result = await usersCollection.updateOne(filter, updateDoc);
+    if (!user) return res.status(404).send({ success: false, message: "User not found" });
 
-        if (result.modifiedCount > 0) {
-            res.send({ success: true, message: "Donor Profile Updated!" });
-        } else {
-            res.status(404).send({ success: false, message: "No changes made" });
-        }
-    } catch (error) {
-        res.status(500).send({ message: "Update failed", error: error.message });
-    }
+    const history = user.donationHistory ? [...user.donationHistory].reverse() : [];
+    res.send({
+      success: true,
+      totalDonations: user.totalDonations || 0,
+      lastDonationDate: user.lastDonationDate || null,
+      history: history,
+    });
+  } catch (error) {
+    res.status(500).send({ message: "Error fetching history", error: error.message });
+  }
 });
 
-// Change User Role or Status (PATCH)
-router.patch('/admin/:id', async (req, res) => {
-    try {
-        const db = getDB();
-        const usersCollection = db.collection('users');
-        const id = req.params.id;
-        const { role, status } = req.body;
+// ✅ Get role by email
+router.get("/role/:email", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const email = req.params.email;
+    const user = await usersCollection.findOne({ email: email }, { projection: { role: 1, _id: 0 } });
 
-        // MongoDB ID object-e convert korte hobe
-        const filter = { _id: new ObjectId(id) };
-
-        const updateDoc = {
-            $set: {
-                ...(role && { role }),
-                ...(status && { status })
-            }
-        };
-
-        const result = await usersCollection.updateOne(filter, updateDoc);
-
-        if (result.matchedCount === 0) {
-            return res.status(404).send({ message: "User not found" });
-        }
-
-        res.send(result);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send({ message: "Update failed", error: error.message });
+    if (user) {
+      res.send({ role: user.role });
+    } else {
+      res.status(404).send({ message: "User not found", role: null });
     }
+  } catch (error) {
+    res.status(500).send({ message: "Error fetching role", error: error.message });
+  }
+});
+
+// ---------------------------------------------------------
+// 2. POST & PATCH ROUTES
+// ---------------------------------------------------------
+
+// ✅ New user registration
+router.post("/", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const user = req.body;
+    const existingUser = await usersCollection.findOne({ email: user.email });
+
+    if (existingUser) return res.send({ message: "User already exists", insertedId: null });
+
+    const newUser = {
+      uid: user.uid,
+      name: user.name || "Anonymous",
+      email: user.email,
+      photoURL: user.photoURL || "",
+      bloodGroup: "",
+      district: "",
+      upazila: "",
+      phone: "",
+      role: "user",
+      status: "active",
+      createdAt: new Date(),
+    };
+
+    const result = await usersCollection.insertOne(newUser);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Error saving user", error: error.message });
+  }
+});
+
+// ✅ Donor রক্ত দেওয়ার পর হিস্ট্রি এবং সামারি আপডেট
+router.patch("/add-donation-history/:email", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const email = req.params.email;
+    const { recipientName, location, date } = req.body;
+
+    const filter = { email: email };
+    const updateDoc = {
+      $push: {
+        donationHistory: {
+          recipientName,
+          location,
+          date: new Date(date),
+          id: new ObjectId(),
+        },
+      },
+      $inc: { totalDonations: 1 },
+      $set: { lastDonationDate: new Date(date) },
+    };
+
+    const result = await usersCollection.updateOne(filter, updateDoc);
+    res.send({ success: true, result });
+  } catch (error) {
+    res.status(500).send({ message: "Update failed", error: error.message });
+  }
+});
+
+// ✅ ইউজার থেকে ডোনর প্রোফাইল আপডেট
+router.patch("/:uid", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const uid = req.params.uid;
+    const updatedData = req.body;
+
+    const filter = { uid: uid };
+    const updateDoc = {
+      $set: {
+        bloodGroup: updatedData.bloodGroup,
+        district: updatedData.district,
+        upazila: updatedData.upazila,
+        phone: updatedData.phone,
+        role: "donor",
+        isDonor: true,
+        status: "active",
+        totalDonations: 0,
+        donationHistory: [],
+      },
+    };
+
+    const result = await usersCollection.updateOne(filter, updateDoc);
+    res.send({ success: true, result });
+  } catch (error) {
+    res.status(500).send({ message: "Update failed", error: error.message });
+  }
+});
+
+// ✅ Admin change Role/Status
+router.patch("/admin/:id", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const id = req.params.id;
+    const { role, status } = req.body;
+
+    const filter = { _id: new ObjectId(id) };
+    const updateDoc = {
+      $set: {
+        ...(role && { role }),
+        ...(status && { status }),
+      },
+    };
+
+    const result = await usersCollection.updateOne(filter, updateDoc);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Update failed", error: error.message });
+  }
+});
+
+// ---------------------------------------------------------
+// 3. GENERAL & CATCH-ALL ROUTES (SHEYSH E RAKHTE HOBE)
+// ---------------------------------------------------------
+
+// ✅ All users fetching with pagination
+router.get("/", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const search = req.query.search?.trim() || "";
+    const role = req.query.role || "";
+
+    const filter = {};
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+    if (role && role !== "all") filter.role = role;
+
+    const [users, total] = await Promise.all([
+      usersCollection.find(filter).skip(skip).limit(limit).toArray(),
+      usersCollection.countDocuments(filter),
+    ]);
+
+    res.send({ users, total, page, limit, totalPages: Math.ceil(total / limit) });
+  } catch (error) {
+    res.status(500).send({ message: "Error fetching users", error: error.message });
+  }
+});
+
+// ✅ User fetching by uid (Dynamic route - সবার শেষে)
+router.get("/:uid", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const result = await usersCollection.findOne({ uid: req.params.uid });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Error", error: error.message });
+  }
 });
 
 module.exports = router;

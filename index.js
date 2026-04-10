@@ -4,7 +4,6 @@ require('dotenv').config();
 
 const port = process.env.PORT || 5000;
 
-// DB কানেক্ট করে সার্ভার স্টার্ট করা
 connectDB().then(() => {
     app.listen(port, () => {
         console.log(`🚀 Server running on port ${port}`);

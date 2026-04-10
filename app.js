@@ -8,6 +8,8 @@ const userRoutes = require('./routes/usersRoutes');
 const campRoutes = require('./routes/campsRoutes');
 const paymentRoute = require('./routes/paymentRoutes');
 const inventoryRoute = require('./routes/inventoryRoutes');
+const requestRoutes = require('./routes/bloodRequest');
+
 
 // standard middlewares
 app.use(express.json());
@@ -26,6 +28,7 @@ app.use('/users', userRoutes);
 app.use('/camps', campRoutes);
 app.use('/payments', paymentRoute);
 app.use('/inventory', inventoryRoute);
+app.use('/blood-request', requestRoutes);
 
 // global error handling middleware
 app.use(globalErrorHandler);
