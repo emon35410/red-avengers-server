@@ -40,12 +40,24 @@ router.get("/donation-history/:email", async (req, res) => {
 
     const user = await usersCollection.findOne(
       { email: email },
-      { projection: { donationHistory: 1, totalDonations: 1, lastDonationDate: 1, _id: 0 } }
+      {
+        projection: {
+          donationHistory: 1,
+          totalDonations: 1,
+          lastDonationDate: 1,
+          _id: 0,
+        },
+      },
     );
 
-    if (!user) return res.status(404).send({ success: false, message: "User not found" });
+    if (!user)
+      return res
+        .status(404)
+        .send({ success: false, message: "User not found" });
 
-    const history = user.donationHistory ? [...user.donationHistory].reverse() : [];
+    const history = user.donationHistory
+      ? [...user.donationHistory].reverse()
+      : [];
     res.send({
       success: true,
       totalDonations: user.totalDonations || 0,
@@ -53,7 +65,9 @@ router.get("/donation-history/:email", async (req, res) => {
       history: history,
     });
   } catch (error) {
-    res.status(500).send({ message: "Error fetching history", error: error.message });
+    res
+      .status(500)
+      .send({ message: "Error fetching history", error: error.message });
   }
 });
 
@@ -63,7 +77,10 @@ router.get("/role/:email", async (req, res) => {
     const db = getDB();
     const usersCollection = db.collection("users");
     const email = req.params.email;
-    const user = await usersCollection.findOne({ email: email }, { projection: { role: 1, _id: 0 } });
+    const user = await usersCollection.findOne(
+      { email: email },
+      { projection: { role: 1, _id: 0 } },
+    );
 
     if (user) {
       res.send({ role: user.role });
@@ -71,7 +88,52 @@ router.get("/role/:email", async (req, res) => {
       res.status(404).send({ message: "User not found", role: null });
     }
   } catch (error) {
-    res.status(500).send({ message: "Error fetching role", error: error.message });
+    res
+      .status(500)
+      .send({ message: "Error fetching role", error: error.message });
+  }
+});
+// ১. ইমেইল দিয়ে ইউজারের ফুল ইনফো (সব ডেটা)
+router.get("/:email", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const email = req.params.email;
+    const result = await usersCollection.findOne({ email: email });
+
+    if (!result)
+      return res
+        .status(404)
+        .send({ success: false, message: "User not found" });
+    res.send(result);
+  } catch (error) {
+    res
+      .status(500)
+      .send({ message: "Error fetching user info", error: error.message });
+  }
+});
+
+// ২. ইমেইল দিয়ে শুধুমাত্র ইউজারের ব্লাড গ্রুপ
+router.get("/blood-group/:email", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const email = req.params.email;
+
+    const user = await usersCollection.findOne(
+      { email: email },
+      { projection: { bloodGroup: 1, _id: 0 } },
+    );
+
+    if (!user)
+      return res
+        .status(404)
+        .send({ success: false, message: "User not found" });
+    res.send({ bloodGroup: user.bloodGroup });
+  } catch (error) {
+    res
+      .status(500)
+      .send({ message: "Error fetching blood group", error: error.message });
   }
 });
 
@@ -87,14 +149,15 @@ router.post("/", async (req, res) => {
     const user = req.body;
     const existingUser = await usersCollection.findOne({ email: user.email });
 
-    if (existingUser) return res.send({ message: "User already exists", insertedId: null });
+    if (existingUser)
+      return res.send({ message: "User already exists", insertedId: null });
 
     const newUser = {
       uid: user.uid,
       name: user.name || "Anonymous",
       email: user.email,
       photoURL: user.photoURL || "",
-      bloodGroup: "",
+      bloodGroup: user.bloodGroup || "",
       district: "",
       upazila: "",
       phone: "",
@@ -106,7 +169,9 @@ router.post("/", async (req, res) => {
     const result = await usersCollection.insertOne(newUser);
     res.send(result);
   } catch (error) {
-    res.status(500).send({ message: "Error saving user", error: error.message });
+    res
+      .status(500)
+      .send({ message: "Error saving user", error: error.message });
   }
 });
 
@@ -192,6 +257,45 @@ router.patch("/admin/:id", async (req, res) => {
   }
 });
 
+// ✅ ইমেইল দিয়ে ইউজারের তথ্য আপডেট করা
+router.patch("/update-by-email/:email", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const email = req.params.email;
+    const updatedData = req.body;
+
+    const filter = { email: email };
+
+    // যে ডেটাগুলো আপডেট করতে চান সেগুলো $set এর ভেতর দিতে হবে
+    const updateDoc = {
+      $set: {
+        ...(updatedData.name && { name: updatedData.name }),
+        ...(updatedData.phone && { phone: updatedData.phone }),
+        ...(updatedData.district && { district: updatedData.district }),
+        ...(updatedData.upazila && { upazila: updatedData.upazila }),
+        ...(updatedData.photoURL && { photoURL: updatedData.photoURL }),
+      },
+    };
+
+    const result = await usersCollection.updateOne(filter, updateDoc);
+
+    if (result.matchedCount === 0) {
+      return res
+        .status(404)
+        .send({ success: false, message: "User not found" });
+    }
+
+    res.send({
+      success: true,
+      message: "Profile updated successfully",
+      result,
+    });
+  } catch (error) {
+    res.status(500).send({ message: "Update failed", error: error.message });
+  }
+});
+
 // ---------------------------------------------------------
 // 3. GENERAL & CATCH-ALL ROUTES (SHEYSH E RAKHTE HOBE)
 // ---------------------------------------------------------
@@ -223,9 +327,17 @@ router.get("/", async (req, res) => {
       usersCollection.countDocuments(filter),
     ]);
 
-    res.send({ users, total, page, limit, totalPages: Math.ceil(total / limit) });
+    res.send({
+      users,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error) {
-    res.status(500).send({ message: "Error fetching users", error: error.message });
+    res
+      .status(500)
+      .send({ message: "Error fetching users", error: error.message });
   }
 });
 
