@@ -93,6 +93,33 @@ router.get("/role/:email", async (req, res) => {
       .send({ message: "Error fetching role", error: error.message });
   }
 });
+// ✅ User fetching by UID (সবার শেষে রাখবেন)
+// এই রুটটি Camps.jsx এর useEffect থেকে রিকোয়েস্ট রিসিভ করবে
+router.get("/:uid", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const uid = req.params.uid;
+
+    // ডাটাবেসে UID দিয়ে খোঁজা
+    const result = await usersCollection.findOne({ uid: uid });
+
+    if (!result) {
+      return res.status(404).send({
+        success: false,
+        message: "User profile not found with this UID",
+      });
+    }
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Server error while fetching user by UID",
+      error: error.message,
+    });
+  }
+});
 // ১. ইমেইল দিয়ে ইউজারের ফুল ইনফো (সব ডেটা)
 router.get("/:email", async (req, res) => {
   try {
