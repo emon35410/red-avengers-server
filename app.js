@@ -14,7 +14,7 @@ const requestRoutes = require('./routes/bloodRequest');
 // standard middlewares
 app.use(express.json());
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: process.env.CLIENT_URL || 'https://red-avengers.vercel.app',
     credentials: true
 }));
 
