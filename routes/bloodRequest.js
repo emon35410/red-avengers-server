@@ -102,7 +102,7 @@ router.patch("/update-status/:id", async (req, res) => {
     const id = req.params.id;
     const io = req.app.get("io");
 
-    // ১. ডাটাবেস থেকে রিকোয়েস্টটি খুঁজে বের করা
+    // database request found for update?
     const bloodRequest = await db
       .collection("blood_requests")
       .findOne({ _id: new ObjectId(id) });
@@ -129,11 +129,11 @@ router.patch("/update-status/:id", async (req, res) => {
       updateDoc.$set = { status: "Completed", completedAt: completionDate };
       updateDoc.$unset = { tempAcceptedDate: "" };
 
-      // ডাটাবেসে সেভ করা ডোনার ইমেইল নিন (Brave issue fix)
+      // save donor email from either bloodRequest (DB) or client input (PATCH body)
       const finalDonorEmail = bloodRequest.donorEmail || donorEmailFromClient;
 
       if (finalDonorEmail) {
-        // ডোনারের হিস্ট্রি আপডেট
+        // donor history update logic
         await db.collection("users").updateOne(
           { email: finalDonorEmail },
           {
@@ -171,7 +171,7 @@ router.patch("/update-status/:id", async (req, res) => {
 
     // --- REAL-TIME NOTIFICATION LOGIC ---
     if (result.modifiedCount > 0 && io) {
-      // A. রিকুয়েস্টারের জন্য (সবসময় Targeted)
+      // A. requester notification (status update)
       const userNotif = {
         type: status === "Accepted" ? "info" : "success",
         title:
@@ -188,23 +188,23 @@ router.patch("/update-status/:id", async (req, res) => {
       };
       io.to(bloodRequest.requesterEmail).emit("new_blood_request", userNotif);
 
-      // B. ডোনারের জন্য (যদি Completed হয়)
+      // B. donor notification (only for Completed status)
       if (status === "Completed" && bloodRequest.donorEmail) {
         io.to(bloodRequest.donorEmail).emit("new_blood_request", {
           type: "success",
           title: "Mission Accomplished!",
           desc: "Thank you for your donation. Your history is updated.",
-          link: "/dashboard/donation-history", // ডোনার তার হিস্ট্রি পেজে যাবে
+          link: "/dashboard/history", // donor hisory page
         });
       }
 
-      // C. অ্যাডমিন/ভলান্টিয়ারের জন্য (শুধুমাত্র Global Broadcast)
+      // C. admin/volunteer notification (only for Accepted status)
       if (status === "Accepted") {
         io.emit("new_blood_request", {
           type: "warning",
           title: "Mission Started",
           desc: `Donor ${donorName} is handling request ${bloodRequest.requestId}`,
-          link: "/dashboard/allrequests", // অ্যাডমিন অল-রিকুয়েস্টে যাবে
+          link: "/dashboard/allrequests", // admin/volunteer request management page
           roleSpecific: ["admin", "volunteer"],
         });
       }

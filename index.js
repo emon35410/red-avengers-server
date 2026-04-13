@@ -12,7 +12,7 @@ const server = http.createServer(app);
 // Initialize Socket.io
 const io = new Server(server, {
     cors: {
-        origin: process.env.CLIENT_URL || 'http://localhost:5173',
+        origin: process.env.CLIENT_URL || 'https://red-avengers.vercel.app',
         credentials: true
     }
 });
@@ -21,7 +21,7 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
     console.log('⚡ User Connected:', socket.id);
 
-    // ইউজার যখন জয়েন করবে, তাকে তার ইমেইল অনুযায়ী একটি রুমে জয়েন করাব
+    // user email room join for targeted notifications
     socket.on('join_room', (email) => {
         socket.join(email);
         console.log(`👤 User with email ${email} joined room.`);
@@ -32,11 +32,10 @@ io.on('connection', (socket) => {
     });
 });
 
-// সকেট অবজেক্টটিকে app-এ সেট করে রাখছি যাতে রাউট থেকে অ্যাক্সেস করা যায়
+// socket.io object set to app for access in routes
 app.set('io', io);
 
 connectDB().then(() => {
-    // app.listen এর বদলে server.listen হবে
     server.listen(port, () => {
         console.log(`🚀 Server running on port ${port}`);
     });
