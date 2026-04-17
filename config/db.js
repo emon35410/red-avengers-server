@@ -18,13 +18,24 @@ const client = new MongoClient(uri, {
     connectTimeoutMS: 10000,
 });
 
-// here we will store the database connection
 let db;
 
 const connectDB = async () => {
     try {
         await client.connect();
-        db = client.db("redAvengersDB"); // database name
+        db = client.db("redAvengersDB");
+
+        // Indexing Setup for Performance Optimization
+        const usersCollection = db.collection("users");
+
+        // Email index (unique for login and quick lookup)
+        await usersCollection.createIndex({ email: 1 }, { unique: true });
+
+        // Blood group index for efficient blood request matching
+        await usersCollection.createIndex({ bloodGroup: 1 });
+        
+        console.log("🚀 Database Indexes Verified!");
+        // Indexing complete, now ping the database to confirm connection
 
         await db.command({ ping: 1 });
         console.log("🛡️ Red Avengers DB Connected Successfully!");
@@ -33,7 +44,6 @@ const connectDB = async () => {
     }
 };
 
-// This function will return the database connection when called from other files
 const getDB = () => {
     if (!db) {
         throw new Error("Database not initialized. Call connectDB first.");

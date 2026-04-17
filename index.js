@@ -1,8 +1,9 @@
+require('dotenv').config();
 const app = require('./app');
 const { connectDB } = require('./config/db');
 const http = require('http'); // 👈 Add this
 const { Server } = require('socket.io'); // 👈 Add this
-require('dotenv').config();
+
 
 const port = process.env.PORT || 5000;
 
@@ -12,7 +13,11 @@ const server = http.createServer(app);
 // Initialize Socket.io
 const io = new Server(server, {
     cors: {
-        origin: process.env.CLIENT_URL || 'https://red-avengers.vercel.app',
+       origin: [
+            "http://localhost:5173", // রিঅ্যাক্ট লোকাল পোর্ট
+            process.env.CLIENT_URL,
+            "https://red-avengers.vercel.app" // প্রোডাকশন ইউআরএল
+        ],
         credentials: true
     }
 });

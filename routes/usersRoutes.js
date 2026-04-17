@@ -3,8 +3,7 @@ const router = express.Router();
 const { getDB } = require("../config/db");
 const { ObjectId } = require("mongodb");
 
-
-// ✅ Get all donors
+//Get all donors
 router.get("/all-donors", async (req, res) => {
   try {
     const db = getDB();
@@ -16,7 +15,7 @@ router.get("/all-donors", async (req, res) => {
   }
 });
 
-// ✅ Get all volunteers
+//Get all volunteers
 router.get("/all-volunteers", async (req, res) => {
   try {
     const db = getDB();
@@ -28,7 +27,7 @@ router.get("/all-volunteers", async (req, res) => {
   }
 });
 
-// ✅ Get role by email
+//Get role by email
 router.get("/role/:email", async (req, res) => {
   try {
     const db = getDB();
@@ -45,7 +44,7 @@ router.get("/role/:email", async (req, res) => {
   }
 });
 
-// ✅ Donation History
+// Donation History
 router.get("/donation-history/:email", async (req, res) => {
   try {
     const db = getDB();
@@ -60,7 +59,7 @@ router.get("/donation-history/:email", async (req, res) => {
   }
 });
 
-// ✅ get user profile by email
+// get user profile by email
 router.get("/profile/:email", async (req, res) => {
   try {
     const db = getDB();
@@ -74,7 +73,7 @@ router.get("/profile/:email", async (req, res) => {
   }
 });
 
-// ✅ get user's blood group by email
+// get user's blood group by email
 router.get("/blood-group/:email", async (req, res) => {
   try {
     const db = getDB();
@@ -88,15 +87,22 @@ router.get("/blood-group/:email", async (req, res) => {
   }
 });
 
-
-// ✅ New user registration
+//New user registration (Modified for Social Login Popup logic)
 router.post("/", async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
     const user = req.body;
     const existingUser = await usersCollection.findOne({ email: user.email });
-    if (existingUser) return res.send({ message: "User already exists", insertedId: null });
+    
+    // if user already exists, return existing user data instead of inserting a new one
+    if (existingUser) {
+        return res.send({ 
+            message: "User already exists", 
+            insertedId: null, 
+            user: existingUser 
+        });
+    }
 
     const newUser = {
       uid: user.uid,
@@ -111,14 +117,32 @@ router.post("/", async (req, res) => {
       status: "active",
       createdAt: new Date(),
     };
+    
     const result = await usersCollection.insertOne(newUser);
-    res.send(result);
+    // new user inserted, return the new user data along with the insertedId
+    res.send({ ...result, user: newUser });
   } catch (error) {
     res.status(500).send({ message: "Error saving user", error: error.message });
   }
 });
 
-// ✅ Update Donation History
+// Update Blood Group only (New route for Social Login Popup)
+router.patch("/update-blood-group/:email", async (req, res) => {
+  try {
+    const db = getDB();
+    const usersCollection = db.collection("users");
+    const { bloodGroup } = req.body;
+    const result = await usersCollection.updateOne(
+      { email: req.params.email },
+      { $set: { bloodGroup: bloodGroup } }
+    );
+    res.send({ success: true, result });
+  } catch (error) {
+    res.status(500).send({ message: "Blood group update failed", error: error.message });
+  }
+});
+
+// Update Donation History
 router.patch("/add-donation-history/:email", async (req, res) => {
   try {
     const db = getDB();
@@ -136,7 +160,7 @@ router.patch("/add-donation-history/:email", async (req, res) => {
   }
 });
 
-// ✅ Admin change Role/Status
+// Admin change Role/Status
 router.patch("/admin/:id", async (req, res) => {
   try {
     const db = getDB();
@@ -151,7 +175,7 @@ router.patch("/admin/:id", async (req, res) => {
   }
 });
 
-// ✅ Update user by email
+// Update user by email
 router.patch("/update-by-email/:email", async (req, res) => {
   try {
     const db = getDB();
@@ -161,10 +185,11 @@ router.patch("/update-by-email/:email", async (req, res) => {
       $set: {
         ...(updatedData.name && { name: updatedData.name }),
         ...(updatedData.phone && { phone: updatedData.phone }),
+        ...(updatedData.bloodGroup && { bloodGroup: updatedData.bloodGroup }),
         ...(updatedData.district && { district: updatedData.district }),
         ...(updatedData.upazila && { upazila: updatedData.upazila }),
         ...(updatedData.photoURL && { photoURL: updatedData.photoURL }),
-        ...(updatedData.lastRegistrationDate && { lastRegistrationDate: updatedData.lastRegistrationDate }), // এটি দরকার ছিল
+        ...(updatedData.lastRegistrationDate && { lastRegistrationDate: updatedData.lastRegistrationDate }),
       },
     };
     const result = await usersCollection.updateOne({ email: req.params.email }, updateDoc);
@@ -174,7 +199,7 @@ router.patch("/update-by-email/:email", async (req, res) => {
   }
 });
 
-// ✅ update user by uid (for donor registration)
+// update user by uid (for donor registration)
 router.patch("/:uid", async (req, res) => {
   try {
     const db = getDB();
@@ -200,11 +225,7 @@ router.patch("/:uid", async (req, res) => {
   }
 });
 
-// ---------------------------------------------------------
-// 3. GENERAL & DYNAMIC ROUTES (SHEYSH E)
-// ---------------------------------------------------------
-
-// ✅ All users fetching with pagination
+// All users fetching with pagination
 router.get("/", async (req, res) => {
   try {
     const db = getDB();
@@ -225,7 +246,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ User fetching by uid (SHEYSH E RAKHTE HOBE)
+// User fetching by uid 
 router.get("/:uid", async (req, res) => {
   try {
     const db = getDB();
