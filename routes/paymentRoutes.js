@@ -2,6 +2,8 @@ const express = require('express');
 const SSLCommerzPayment = require('sslcommerz-lts');
 const router = express.Router();
 const { getDB } = require('../config/db'); 
+const { verifyToken } = require("../middlewares/authMiddleware");
+const { restrictDemoActions } = require("../middlewares/demoMiddleware");
 
 // SSLCommerz Credentials from .env
 const store_id = process.env.SSL_STORE_ID;
@@ -9,7 +11,7 @@ const store_passwd = process.env.SSL_STORE_PASSWORD;
 const is_live = false; // Sandbox mode-- true for live
 
 // payment initialization route
-router.post('/init', async (req, res) => {
+router.post('/init', verifyToken, restrictDemoActions, async (req, res) => {
     const db = getDB();
     const { amount, name, email, phone } = req.body;
     const tran_id = `REF-${Date.now()}`; //unique transaction ID generation
@@ -121,7 +123,7 @@ router.post('/ipn', async (req, res) => {
 });
 
 
-router.get('/', async (req, res) => {
+router.get('/', verifyToken, restrictDemoActions, async (req, res) => {
     try {
         const db = getDB();
         const result = await db.collection('donations')

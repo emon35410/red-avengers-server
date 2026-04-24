@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const { getDB } = require("../config/db");
 const { ObjectId } = require("mongodb");
+const { verifyToken } = require("../middlewares/authMiddleware");
+const { restrictDemoActions } = require("../middlewares/demoMiddleware");
 
 router.get("/", async (req, res) => {
   try {
@@ -17,7 +19,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.get("/my-requests/:email", async (req, res) => {
+router.get("/my-requests/:email", verifyToken, async (req, res) => {
   try {
     const db = getDB();
     const email = req.params.email;
@@ -38,7 +40,7 @@ router.get("/my-requests/:email", async (req, res) => {
   }
 });
 
-router.post("/add", async (req, res) => {
+router.post("/add", verifyToken, restrictDemoActions, async (req, res) => {
   try {
     const db = getDB();
     const requestCollection = db.collection("blood_requests");
@@ -95,127 +97,151 @@ router.post("/add", async (req, res) => {
   }
 });
 
-router.patch("/update-status/:id", async (req, res) => {
-  try {
-    const db = getDB();
-    const { status, donorEmail: donorEmailFromClient, donorName } = req.body;
-    const id = req.params.id;
-    const io = req.app.get("io");
+router.patch(
+  "/update-status/:id",
+  verifyToken,
+  restrictDemoActions,
+  async (req, res) => {
+    try {
+      const db = getDB();
+      const { status, donorEmail: donorEmailFromClient, donorName } = req.body;
+      const id = req.params.id;
+      const io = req.app.get("io");
 
-    // database request found for update?
-    const bloodRequest = await db
-      .collection("blood_requests")
-      .findOne({ _id: new ObjectId(id) });
+      // ১. ডাটাবেজ থেকে বর্তমান রিকোয়েস্টটি খুঁজে বের করা
+      const bloodRequest = await db
+        .collection("blood_requests")
+        .findOne({ _id: new ObjectId(id) });
 
-    if (!bloodRequest)
-      return res
-        .status(404)
-        .json({ success: false, message: "Request not found" });
-
-    let updateDoc = {};
-
-    // --- PHASE: ACCEPTED ---
-    if (status === "Accepted") {
-      updateDoc.$set = {
-        status: "Accepted",
-        donorEmail: donorEmailFromClient,
-        donorName: donorName,
-        tempAcceptedDate: new Date(),
-      };
-    }
-    // --- PHASE: COMPLETED (Donation History Update Logic) ---
-    else if (status === "Completed") {
-      const completionDate = new Date();
-      updateDoc.$set = { status: "Completed", completedAt: completionDate };
-      updateDoc.$unset = { tempAcceptedDate: "" };
-
-      // save donor email from either bloodRequest (DB) or client input (PATCH body)
-      const finalDonorEmail = bloodRequest.donorEmail || donorEmailFromClient;
-
-      if (finalDonorEmail) {
-        // donor history update logic
-        await db.collection("users").updateOne(
-          { email: finalDonorEmail },
-          {
-            $push: {
-              donationHistory: {
-                recipientName: bloodRequest.recipientName,
-                location: bloodRequest.location,
-                date: completionDate,
-                bloodGroup: bloodRequest.bloodGroup,
-                requestId: bloodRequest.requestId,
-                id: new ObjectId(),
-              },
-            },
-            $inc: { totalDonations: 1 },
-            $set: { lastDonationDate: completionDate },
-          },
-        );
-      }
-    }
-    // --- PHASE: APPROVED ---
-    else if (status === "Approved") {
-      updateDoc.$set = { status: "Approved" };
-      updateDoc.$unset = {
-        tempAcceptedDate: "",
-        donorEmail: "",
-        donorName: "",
-      };
-    } else {
-      updateDoc.$set = { status: status };
-    }
-
-    const result = await db
-      .collection("blood_requests")
-      .updateOne({ _id: new ObjectId(id) }, updateDoc);
-
-    // --- REAL-TIME NOTIFICATION LOGIC ---
-    if (result.modifiedCount > 0 && io) {
-      // A. requester notification (status update)
-      const userNotif = {
-        type: status === "Accepted" ? "info" : "success",
-        title:
-          status === "Accepted"
-            ? "Donor Found!"
-            : status === "Approved"
-              ? "Request Live!"
-              : "Donation Completed!",
-        desc:
-          status === "Accepted"
-            ? `${donorName} accepted your request.`
-            : `Your request for ${bloodRequest.recipientName} is now ${status.toLowerCase()}.`,
-        link: "/dashboard/my-requests", 
-      };
-      io.to(bloodRequest.requesterEmail).emit("new_blood_request", userNotif);
-
-      // B. donor notification (only for Completed status)
-      if (status === "Completed" && bloodRequest.donorEmail) {
-        io.to(bloodRequest.donorEmail).emit("new_blood_request", {
-          type: "success",
-          title: "Mission Accomplished!",
-          desc: "Thank you for your donation. Your history is updated.",
-          link: "/dashboard/history", // donor hisory page
-        });
+      if (!bloodRequest) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Request not found" });
       }
 
-      // C. admin/volunteer notification (only for Accepted status)
+      let updateDoc = {};
+
+      // --- PHASE: ACCEPTED ---
       if (status === "Accepted") {
-        io.emit("new_blood_request", {
-          type: "warning",
-          title: "Mission Started",
-          desc: `Donor ${donorName} is handling request ${bloodRequest.requestId}`,
-          link: "/dashboard/allrequests", // admin/volunteer request management page
-          roleSpecific: ["admin", "volunteer"],
-        });
+        updateDoc.$set = {
+          status: "Accepted",
+          donorEmail: donorEmailFromClient,
+          donorName: donorName,
+          tempAcceptedDate: new Date(),
+        };
       }
-    }
 
-    res
-      .status(200)
-      .json({ success: true, message: `Status updated to ${status}` });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+      // --- PHASE: COMPLETED (Donation History Update Logic) ---
+      else if (status === "Completed") {
+        // 🚩 সর্তকতা চেক: রিকোয়েস্টটি কি আগে থেকেই Completed?
+        if (bloodRequest.status === "Completed") {
+          return res.status(400).json({
+            success: false,
+            message: "This request has already been marked as completed.",
+          });
+        }
+
+        const completionDate = new Date();
+        updateDoc.$set = { status: "Completed", completedAt: completionDate };
+        updateDoc.$unset = { tempAcceptedDate: "" };
+
+        const finalDonorEmail = bloodRequest.donorEmail || donorEmailFromClient;
+
+        if (finalDonorEmail) {
+          // ডোনারের প্রোফাইলে হিস্ট্রি এবং কাউন্ট আপডেট করা
+          await db.collection("users").updateOne(
+            { email: finalDonorEmail },
+            {
+              $push: {
+                donationHistory: {
+                  recipientName: bloodRequest.recipientName,
+                  location: bloodRequest.location,
+                  date: completionDate,
+                  bloodGroup: bloodRequest.bloodGroup,
+                  requestId: bloodRequest.requestId,
+                  id: new ObjectId(),
+                },
+              },
+              $inc: { totalDonations: 1 },
+              $set: { lastDonationDate: completionDate },
+            },
+          );
+        }
+      }
+
+      // --- PHASE: APPROVED ---
+      else if (status === "Approved") {
+        updateDoc.$set = { status: "Approved" };
+        updateDoc.$unset = {
+          tempAcceptedDate: "",
+          donorEmail: "",
+          donorName: "",
+        };
+      }
+
+      // --- OTHER PHASES (Canceled, Pending, etc.) ---
+      else {
+        updateDoc.$set = { status: status };
+      }
+
+      // ২. রিকোয়েস্ট স্ট্যাটাস আপডেট করা
+      const result = await db
+        .collection("blood_requests")
+        .updateOne({ _id: new ObjectId(id) }, updateDoc);
+
+      // --- REAL-TIME NOTIFICATION LOGIC ---
+      if (result.modifiedCount > 0 && io) {
+        // A. Requester-কে জানানো (সব স্ট্যাটাস আপডেটের জন্য)
+        const userNotif = {
+          type: status === "Accepted" ? "info" : "success",
+          title:
+            status === "Accepted"
+              ? "Donor Found!"
+              : status === "Approved"
+                ? "Request Live!"
+                : "Donation Completed!",
+          desc:
+            status === "Accepted"
+              ? `${donorName} accepted your request.`
+              : `Your request for ${bloodRequest.recipientName} is now ${status.toLowerCase()}.`,
+          link: "/dashboard/my-requests",
+        };
+        io.to(bloodRequest.requesterEmail).emit("new_blood_request", userNotif);
+
+        // B. Donor-কে জানানো (শুধুমাত্র কমপ্লিট হলে)
+        if (
+          status === "Completed" &&
+          (bloodRequest.donorEmail || donorEmailFromClient)
+        ) {
+          const targetEmail = bloodRequest.donorEmail || donorEmailFromClient;
+          io.to(targetEmail).emit("new_blood_request", {
+            type: "success",
+            title: "Mission Accomplished!",
+            desc: "Thank you for your donation. Your history is updated.",
+            link: "/dashboard/history",
+          });
+        }
+
+        // C. Admin/Volunteer-কে জানানো (কাজে স্বচ্ছতার জন্য)
+        if (status === "Accepted") {
+          io.emit("new_blood_request", {
+            type: "warning",
+            title: "Mission Started",
+            desc: `Donor ${donorName} is handling request ${bloodRequest.requestId}`,
+            link: "/dashboard/allrequests",
+            roleSpecific: ["admin", "volunteer"],
+          });
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Status successfully updated to ${status}`,
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
 
 module.exports = router;

@@ -1,5 +1,7 @@
 const express = require("express");
 const router = express.Router();
+const { verifyToken } = require("../middlewares/authMiddleware");
+const { restrictDemoActions } = require("../middlewares/demoMiddleware");
 const { getDB } = require("../config/db");
 const { ObjectId } = require("mongodb");
 
@@ -45,7 +47,7 @@ router.get("/role/:email", async (req, res) => {
 });
 
 // Donation History
-router.get("/donation-history/:email", async (req, res) => {
+router.get("/donation-history/:email", verifyToken, async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
@@ -60,7 +62,7 @@ router.get("/donation-history/:email", async (req, res) => {
 });
 
 // get user profile by email
-router.get("/profile/:email", async (req, res) => {
+router.get("/profile/:email", verifyToken, async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
@@ -74,7 +76,7 @@ router.get("/profile/:email", async (req, res) => {
 });
 
 // get user's blood group by email
-router.get("/blood-group/:email", async (req, res) => {
+router.get("/blood-group/:email", verifyToken, async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
@@ -88,7 +90,7 @@ router.get("/blood-group/:email", async (req, res) => {
 });
 
 //New user registration (Modified for Social Login Popup logic)
-router.post("/", async (req, res) => {
+router.post("/",  async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
@@ -127,7 +129,7 @@ router.post("/", async (req, res) => {
 });
 
 // Update Blood Group only (New route for Social Login Popup)
-router.patch("/update-blood-group/:email", async (req, res) => {
+router.patch("/update-blood-group/:email", verifyToken, restrictDemoActions, async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
@@ -143,7 +145,7 @@ router.patch("/update-blood-group/:email", async (req, res) => {
 });
 
 // Update Donation History
-router.patch("/add-donation-history/:email", async (req, res) => {
+router.patch("/add-donation-history/:email", verifyToken, restrictDemoActions, async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
@@ -161,7 +163,7 @@ router.patch("/add-donation-history/:email", async (req, res) => {
 });
 
 // Admin change Role/Status
-router.patch("/admin/:id", async (req, res) => {
+router.patch("/admin/:id", verifyToken, restrictDemoActions, async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
@@ -176,7 +178,7 @@ router.patch("/admin/:id", async (req, res) => {
 });
 
 // Update user by email
-router.patch("/update-by-email/:email", async (req, res) => {
+router.patch("/update-by-email/:email", verifyToken, restrictDemoActions, async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
@@ -200,7 +202,7 @@ router.patch("/update-by-email/:email", async (req, res) => {
 });
 
 // update user by uid (for donor registration)
-router.patch("/:uid", async (req, res) => {
+router.patch("/:uid", verifyToken, restrictDemoActions, async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
@@ -226,7 +228,7 @@ router.patch("/:uid", async (req, res) => {
 });
 
 // All users fetching with pagination
-router.get("/", async (req, res) => {
+router.get("/", verifyToken, restrictDemoActions, async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");
@@ -247,7 +249,7 @@ router.get("/", async (req, res) => {
 });
 
 // User fetching by uid 
-router.get("/:uid", async (req, res) => {
+router.get("/:uid", verifyToken, async (req, res) => {
   try {
     const db = getDB();
     const usersCollection = db.collection("users");

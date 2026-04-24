@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { getDB } = require('../config/db');
 const { ObjectId } = require('mongodb'); 
+const { verifyToken } = require("../middlewares/authMiddleware");
+const { restrictDemoActions } = require("../middlewares/demoMiddleware");
 
 // new camp creation (POST)
-router.post('/', async (req, res) => {
+router.post('/', verifyToken, restrictDemoActions, async (req, res) => {
     try {
         const db = getDB();
         const campsCollection = db.collection('camps');

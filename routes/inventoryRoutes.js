@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { getDB } = require('../config/db');
+const { verifyToken } = require("../middlewares/authMiddleware");
+const { restrictDemoActions } = require("../middlewares/demoMiddleware");
 
 // get all inventory
 router.get('/', async (req, res) => {
@@ -42,7 +44,7 @@ router.get('/logs', async (req, res) => {
 });
 
 // new inventory add (Create)
-router.post('/add', async (req, res) => {
+router.post('/add', verifyToken, restrictDemoActions, async (req, res) => {
     try {
         const db = getDB();
         const bloodCollection = db.collection('blood_inventory');
